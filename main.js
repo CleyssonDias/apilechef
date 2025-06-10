@@ -133,9 +133,38 @@ app.delete('/api/movimentacoes', (req, res) => {
 
 // --- Usuários (autenticação simples) ---
 
+app.get('/api/usuarios', (req, res) => {
+  db.all('SELECT id, email FROM usuarios', [], (err, rows) => {
+    if (err) return res.status(500).json({ erro: err.message });
+    res.json(rows);
+  });
+});
+
+// Novo endpoint para deletar usuário por id (não permite deletar admin@admin)
+app.delete('/api/usuarios/:id', (req, res) => {
+  const id = req.params.id;
+  db.get('SELECT email FROM usuarios WHERE id=?', [id], (err, row) => {
+    if (err) return res.status(500).json({ erro: err.message });
+    if (!row) return res.status(404).json({ erro: 'Usuário não encontrado' });
+    if (row.email === "admin@admin") {
+      return res.status(403).json({ erro: 'Não é permitido apagar o admin.' });
+    }
+    db.run('DELETE FROM usuarios WHERE id=?', [id], function(err2) {
+      if (err2) return res.status(500).json({ erro: err2.message });
+      res.json({ ok: true });
+    });
+  });
+});
+
 app.post('/api/usuarios', (req, res) => {
   const { email, senha } = req.body;
   if (!email || !senha) return res.status(400).json({ erro: 'Email e senha obrigatórios' });
+
+  // Não permite cadastrar o admin@admin via API
+  if (email === "admin@admin") {
+    return res.status(403).json({ erro: 'Não é permitido cadastrar o admin pela API.' });
+  }
+
   db.run(
     'INSERT INTO usuarios (email, senha) VALUES (?, ?)',
     [email, senha],
